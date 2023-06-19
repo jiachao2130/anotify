@@ -1,5 +1,6 @@
 pub mod app;
 
+pub mod handler;
 pub mod watcher;
 
 /// 定义 crate::Error

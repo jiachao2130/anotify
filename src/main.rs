@@ -7,6 +7,6 @@ async fn main() {
         Err(err) => {
             println!("Error: {}", err);
             std::process::exit(1);
-        },
+        }
     };
 }

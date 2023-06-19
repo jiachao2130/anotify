@@ -9,4 +9,5 @@ edition = "2021"
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3.28"
 inotify = "0.10.1"
-tokio = { version = "1.28.2", features = ["macros", "rt-multi-thread"] }
+regex = "1.8.4"
+tokio = { version = "1.28.2", features = ["macros", "rt-multi-thread", "sync"] }
