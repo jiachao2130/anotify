@@ -300,6 +300,6 @@ pub fn parse() -> crate::Result<Anotify> {
         mask,
         recursive,
         regex,
-        targets
+        targets,
     })
 }
