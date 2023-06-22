@@ -115,6 +115,13 @@ where
                 .await
                 .unwrap();
         }
+
+        // 当监控文件被删除，则退出
+        if !(event.as_ref().unwrap().mask & EventMask::IGNORED).is_empty() {
+            return Ok(())
+        }
+
+        // 监控文件变动并发送至 fliter
         fliter
             .send(Event {
                 root: root.as_os_str().to_os_string(),

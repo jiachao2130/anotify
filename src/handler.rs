@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use inotify::WatchMask;
 use regex::Regex;
+use tokio::sync::Mutex;
 use tokio::sync::mpsc::{self, Receiver};
 
 use crate::app;
@@ -16,6 +19,7 @@ pub async fn run() -> crate::Result<()> {
     let (handler_tx, mut handler_rx) = mpsc::channel(1024);
     let (fliter_tx, fliter_rx) = mpsc::channel(1024);
     let (err_tx, mut err_rx) = mpsc::channel(1);
+    let counter = Arc::new(Mutex::new(0));
 
     // 将初始路径添加到监视器中
     let tx = handler_tx.clone();
@@ -31,12 +35,23 @@ pub async fn run() -> crate::Result<()> {
         tokio::select! {
             // 递归模式，添加新的监控路径
             Some(new_entry) = handler_rx.recv() => {
+                let mut _counter = counter.lock().await;
+                *_counter += 1;
                 let handler = handler_tx.clone();
                 let fliter = fliter_tx.clone();
                 let err_tx = err_tx.clone();
+                let counter = Arc::clone(&counter);
                 tokio::spawn(async move {
-                    if let Err(e) = watcher::watch(new_entry, &mask, recursive, handler, fliter).await {
-                        err_tx.send(Err(e)).await.unwrap();
+                    let mut _counter = counter.lock().await;
+                    match watcher::watch(new_entry, &mask, recursive, handler, fliter).await {
+                        Ok(_) => {},
+                        Err(e) => {
+                            err_tx.send(Err(e)).await.unwrap();
+                        }
+                    }
+                    *_counter -= 1;
+                    if *_counter == 0 {
+                        err_tx.send(Err("Error: All watches FD were removed.".into())).await.unwrap();
                     }
                 });
             },
