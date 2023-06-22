@@ -277,7 +277,7 @@ pub fn parse() -> crate::Result<Anotify> {
     }
 
     if mask.is_empty() {
-        return Err("You must point at least one EVENT".into());
+        return Err("Error: You must point at least one EVENT".into());
     }
 
     let mut recursive = false;

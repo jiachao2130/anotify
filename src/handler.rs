@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use inotify::WatchMask;
 use regex::Regex;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc::{self, Receiver};
+use tokio::sync::Mutex;
 
 use crate::app;
 use crate::watcher::{self, Event};

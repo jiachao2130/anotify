@@ -116,9 +116,9 @@ where
                 .unwrap();
         }
 
-        // 当监控文件被删除，则退出
+        // 当监控文件被删除，则退出当前任务
         if !(event.as_ref().unwrap().mask & EventMask::IGNORED).is_empty() {
-            return Ok(())
+            return Ok(());
         }
 
         // 监控文件变动并发送至 fliter
