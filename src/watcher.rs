@@ -2,7 +2,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use futures_util::StreamExt;
-use inotify::{EventStream, Inotify, WatchMask};
+use inotify::{EventMask, EventStream, Inotify, WatchMask};
 use path_absolutize::*;
 use tokio::sync::mpsc::Sender;
 
@@ -89,10 +89,10 @@ where
 
     let mut buffer = [0; 1024];
     let mut stream = watcher.into_event_stream(&mut buffer)?;
-    // TODO: walk dir 递归添加目录？
     if recursive && root.is_dir() {
         let sub_dirs = sub_dir(&path)?;
 
+        let handler = handler.clone();
         tokio::spawn(async move {
             for dir in sub_dirs {
                 handler.send(dir).await.unwrap();
@@ -101,10 +101,27 @@ where
     }
 
     while let Some(event) = stream.next().await {
+        // 若为递归模式，create new dir 需将其发送至 handler
+        if recursive
+            && !(event.as_ref().unwrap().mask & EventMask::CREATE).is_empty()
+            && !(event.as_ref().unwrap().mask & EventMask::ISDIR).is_empty()
+        {
+            let handler = handler.clone();
+            handler
+                .send(
+                    root.join(event.as_ref().unwrap().name.clone().unwrap())
+                        .into(),
+                )
+                .await
+                .unwrap();
+        }
         fliter
             .send(Event {
                 root: root.as_os_str().to_os_string(),
-                mask: WatchMask::from_bits(event.as_ref().unwrap().mask.bits()).unwrap(),
+                mask: WatchMask::from_bits(
+                    event.as_ref().unwrap().mask.bits() & WatchMask::ALL_EVENTS.bits(),
+                )
+                .unwrap(),
                 name: event.as_ref().unwrap().name.clone(),
             })
             .await

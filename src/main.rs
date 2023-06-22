@@ -5,7 +5,7 @@ async fn main() {
     let _ = match handler::run().await {
         Ok(()) => (),
         Err(err) => {
-            println!("Error: {}", err);
+            println!("{}", err);
             std::process::exit(1);
         }
     };

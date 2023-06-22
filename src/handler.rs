@@ -15,6 +15,7 @@ pub async fn run() -> crate::Result<()> {
 
     let (handler_tx, mut handler_rx) = mpsc::channel(1024);
     let (fliter_tx, fliter_rx) = mpsc::channel(1024);
+    let (err_tx, mut err_rx) = mpsc::channel(1);
 
     // 将初始路径添加到监视器中
     let tx = handler_tx.clone();
@@ -30,17 +31,17 @@ pub async fn run() -> crate::Result<()> {
         tokio::select! {
             // 递归模式，添加新的监控路径
             Some(new_entry) = handler_rx.recv() => {
-                println!("{:?}", new_entry);
                 let handler = handler_tx.clone();
                 let fliter = fliter_tx.clone();
+                let err_tx = err_tx.clone();
                 tokio::spawn(async move {
                     if let Err(e) = watcher::watch(new_entry, &mask, recursive, handler, fliter).await {
-                        println!("{:?}", e);
-                        return Err(e)
+                        err_tx.send(Err(e)).await.unwrap();
                     }
-                    Ok(())
-                    // TODO: 如果 watch 出错，则何如？
                 });
+            },
+            Some(e) = err_rx.recv() => {
+                return e
             },
             // ctrl + c 正常退出
             _ = tokio::signal::ctrl_c() => {
@@ -72,7 +73,7 @@ async fn fliter(
                 }
 
                 let mask = mask & *event.mask();
-                println!("event: {:?}", mask);
+                println!("{:?}: {}", mask, event.path().to_str().unwrap());
             },
             _ = tokio::signal::ctrl_c() => {
                 return Ok(())

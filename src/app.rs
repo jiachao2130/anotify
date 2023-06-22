@@ -141,7 +141,7 @@ pub fn app() -> Command {
             Arg::new("oneshot")
                 .long("oneshot")
                 .action(ArgAction::SetTrue)
-                .help("Only watch path, if it is a directory"),
+                .help("Only receive one event, then remove the watch"),
         )
         .arg(
             Arg::new("dir")
