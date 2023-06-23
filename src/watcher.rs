@@ -112,8 +112,7 @@ where
                     root.join(event.as_ref().unwrap().name.clone().unwrap())
                         .into(),
                 )
-                .await
-                .unwrap();
+                .await?;
         }
 
         // 当监控文件被删除，则退出当前任务
@@ -131,8 +130,7 @@ where
                 .unwrap(),
                 name: event.as_ref().unwrap().name.clone(),
             })
-            .await
-            .unwrap();
+            .await?;
     }
 
     Ok(())

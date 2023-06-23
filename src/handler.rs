@@ -81,10 +81,8 @@ async fn fliter(
             // 过滤并处理 inotfiy 事件
             Some(event) = rx.recv() => {
                 // regex 匹配过滤
-                if let Some(re) = re.as_ref() {
-                    if ! re.is_match(&event.path().as_path().to_str().unwrap()) {
-                        break;
-                    }
+                if re.is_some() && ! re.as_ref().unwrap().is_match(&event.path().as_path().to_str().unwrap()) {
+                    continue
                 }
 
                 let mask = mask & *event.mask();
@@ -95,5 +93,4 @@ async fn fliter(
             }
         }
     }
-    Ok(())
 }
