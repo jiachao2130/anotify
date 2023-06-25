@@ -1,15 +1,24 @@
+use std::ffi::OsString;
 use std::sync::Arc;
 
 use regex::Regex;
 use tokio::sync::Mutex;
 use tokio::sync::{
     broadcast,
-    mpsc::{self, Receiver},
+    mpsc::{self, Receiver, Sender},
 };
 
 use crate::app::Anotify;
 use crate::watcher::{self, Event};
 use crate::WatchMask;
+
+/// channels collection, for handle func
+struct Handler {
+    handler_tx: Sender<OsString>,
+    handler_rx: Receiver<OsString>,
+    fliter_tx: Sender<Event>,
+    err_rx: Receiver<crate::Error>
+}
 
 pub async fn run(anotify: Anotify, handler: Option<broadcast::Sender<Event>>) -> crate::Result<()> {
     let Anotify {
