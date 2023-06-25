@@ -1,7 +1,10 @@
 pub mod app;
 
 pub mod handler;
-pub mod watcher;
+mod watcher;
+
+pub use watcher::Event;
+pub use inotify::WatchMask;
 
 /// 定义 crate::Error
 /// 大部分函数返回的错误

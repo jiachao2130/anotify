@@ -67,7 +67,7 @@ impl Event {
     }
 }
 
-pub async fn watch<P>(
+pub(crate) async fn watch<P>(
     path: P,
     mask: &WatchMask,
     recursive: bool,
@@ -106,7 +106,6 @@ where
             && !(event.as_ref().unwrap().mask & EventMask::CREATE).is_empty()
             && !(event.as_ref().unwrap().mask & EventMask::ISDIR).is_empty()
         {
-            let handler = handler.clone();
             handler
                 .send(
                     root.join(event.as_ref().unwrap().name.clone().unwrap())

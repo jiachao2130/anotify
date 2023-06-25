@@ -12,7 +12,7 @@ pub struct Anotify {
     pub targets: Vec<OsString>,
 }
 
-pub fn app() -> Command {
+fn app() -> Command {
     let cmd = Command::new("anotify")
         .author("CC")
         .arg(

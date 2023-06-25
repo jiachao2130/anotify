@@ -1,20 +1,23 @@
 use std::sync::Arc;
 
-use inotify::WatchMask;
 use regex::Regex;
-use tokio::sync::mpsc::{self, Receiver};
 use tokio::sync::Mutex;
+use tokio::sync::{
+    broadcast,
+    mpsc::{self, Receiver},
+};
 
-use crate::app;
+use crate::app::Anotify;
 use crate::watcher::{self, Event};
+use crate::WatchMask;
 
-pub async fn run() -> crate::Result<()> {
-    let app::Anotify {
+pub async fn run(anotify: Anotify, handler: Option<broadcast::Sender<Event>>) -> crate::Result<()> {
+    let Anotify {
         mask,
         recursive,
         regex,
         targets,
-    } = app::parse()?;
+    } = anotify;
 
     let (handler_tx, mut handler_rx) = mpsc::channel(1024);
     let (fliter_tx, fliter_rx) = mpsc::channel(1024);
@@ -29,7 +32,7 @@ pub async fn run() -> crate::Result<()> {
         }
     });
 
-    tokio::spawn(fliter(fliter_rx, mask.clone(), regex));
+    tokio::spawn(fliter(fliter_rx, mask.clone(), regex, handler));
 
     loop {
         tokio::select! {
@@ -70,6 +73,7 @@ async fn fliter(
     mut rx: Receiver<Event>,
     mask: WatchMask,
     regex: Option<String>,
+    handler: Option<broadcast::Sender<Event>>,
 ) -> crate::Result<()> {
     let mut re = None;
     if let Some(regex) = regex {
@@ -82,6 +86,11 @@ async fn fliter(
             Some(event) = rx.recv() => {
                 // regex 匹配过滤
                 if re.is_some() && ! re.as_ref().unwrap().is_match(&event.path().as_path().to_str().unwrap()) {
+                    continue
+                }
+
+                if handler.is_some() {
+                    let _ = handler.as_ref().unwrap().send(event)?;
                     continue
                 }
 
