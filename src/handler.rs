@@ -42,13 +42,13 @@ pub async fn run() -> crate::Result<()> {
                 let err_tx = err_tx.clone();
                 let counter = Arc::clone(&counter);
                 tokio::spawn(async move {
-                    let mut _counter = counter.lock().await;
                     match watcher::watch(new_entry, &mask, recursive, handler, fliter).await {
                         Ok(_) => {},
                         Err(e) => {
                             err_tx.send(Err(e)).await.unwrap();
                         }
                     }
+                    let mut _counter = counter.lock().await;
                     *_counter -= 1;
                     if *_counter == 0 {
                         err_tx.send(Err("Error: All watches FD were removed.".into())).await.unwrap();
