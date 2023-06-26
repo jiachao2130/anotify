@@ -35,7 +35,20 @@ struct Handle {
     pub output: Option<broadcast::Sender<Event>>,
 }
 
-pub async fn run(anotify: Anotify, output: Option<broadcast::Sender<Event>>, shutdown: impl Future) -> crate::Result<()> {
+/// Start a inotify server to monitor files change.
+/// When catch `shutdown` result, or some error were caused, quit.
+///
+/// You'd better define a `output` to recv all events, if not, the result would be print to stdout
+/// like:
+///
+/// ```no_run
+/// println!("{:?}: {:?}", event.mask(), event.path());
+/// ```
+pub async fn run(
+    anotify: Anotify,
+    output: Option<broadcast::Sender<Event>>,
+    shutdown: impl Future,
+) -> crate::Result<()> {
     // init all handle channels, all task communicate by them.
     let (handler_tx, handler_rx) = mpsc::channel(1024);
     let (fliter_tx, fliter_rx) = mpsc::channel(1024);
@@ -93,14 +106,16 @@ async fn handler(anotify: Anotify, handle: Handle) -> crate::Result<()> {
             let counter = Arc::clone(&counter);
             tokio::spawn(async move {
                 match watcher::watch(target, &mask, recursive, handler, fliter).await {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(e) => err.send(e).await.unwrap(),
                 }
 
                 let mut _counter = counter.lock().await;
                 *_counter -= 1;
                 if *_counter == 0 {
-                    err.send("Error: All watches FD were removed.".into()).await.unwrap();
+                    err.send("Error: All watches FD were removed.".into())
+                        .await
+                        .unwrap();
                 }
             });
         }
@@ -119,25 +134,25 @@ async fn fliter(
     }
 
     loop {
-        tokio::select! {
-            // 过滤并处理 inotfiy 事件
-            Some(event) = rx.recv() => {
-                // regex 匹配过滤
-                if re.is_some() && ! re.as_ref().unwrap().is_match(&event.path().as_path().to_str().unwrap()) {
-                    continue
-                }
-
-                if handler.is_some() {
-                    let _ = handler.as_ref().unwrap().send(event)?;
-                    continue
-                }
-
-                let mask = mask & *event.mask();
-                println!("{:?}: {}", mask, event.path().to_str().unwrap());
-            },
-            _ = tokio::signal::ctrl_c() => {
-                return Ok(())
+        // 过滤并处理 inotfiy 事件
+        if let Some(event) = rx.recv().await {
+            // regex 匹配过滤
+            if re.is_some()
+                && !re
+                    .as_ref()
+                    .unwrap()
+                    .is_match(&event.path().as_path().to_str().unwrap())
+            {
+                continue;
             }
+
+            if handler.is_some() {
+                let _ = handler.as_ref().unwrap().send(event)?;
+                continue;
+            }
+
+            let mask = mask & *event.mask();
+            println!("{:?}: {:?}", mask, event.path());
         }
     }
 }

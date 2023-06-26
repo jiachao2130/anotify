@@ -45,6 +45,17 @@ impl Watcher {
     }
 }
 
+/// Watched event, contains File path & EventMask.
+///
+/// # Example
+///
+/// ```
+/// loop {
+///     if let Some(event) = rx.recv().await {
+///         println!("{:?}: {:?}", event.mask(), event.path());
+///     }
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub struct Event {
     root: OsString,
@@ -53,6 +64,7 @@ pub struct Event {
 }
 
 impl Event {
+    /// Return a fullpath `PathBuf`
     pub fn path(&self) -> PathBuf {
         let mut path = PathBuf::from(&self.root);
         if let Some(name) = &self.name {
@@ -62,6 +74,7 @@ impl Event {
         path
     }
 
+    /// Get current WatchMask about this event.
     pub fn mask(&self) -> &WatchMask {
         &self.mask
     }

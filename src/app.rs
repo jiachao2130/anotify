@@ -6,9 +6,16 @@ use inotify::WatchMask;
 /// Anotify
 /// todo
 pub struct Anotify {
+    /// inotify::WatchMask, the event mask to watched
     pub mask: WatchMask,
+
+    /// the regex to fliter file name
     pub regex: Option<String>,
+
+    /// does it watch sub dir
     pub recursive: bool,
+
+    /// all pathes to be watched
     pub targets: Vec<OsString>,
 }
 
