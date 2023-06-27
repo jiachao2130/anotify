@@ -2,6 +2,7 @@
 name = "anotify-rs"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/jiachao2130/anotify"
 keywords = ["async", "inotify", "recursive"]
 include = ["src/**/*", "Cargo.toml", "README.md"]
 description = "An async wrapper for Linux inotify API, easy to use."
