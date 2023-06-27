@@ -9,7 +9,7 @@
 ///
 /// ```
 /// use std::ffi::OsString;
-/// use anotify::{
+/// use anotify_rs::{
 ///     Anotify,
 ///     Event,
 ///     WatchMask,
@@ -33,7 +33,7 @@
 ///         }
 ///     });
 ///
-///     match anotify::handler::run(anotify, Some(tx), tokio::signal::ctrl_c()).await {
+///     match anotify_rs::handler::run(anotify, Some(tx), tokio::signal::ctrl_c()).await {
 ///         // press ctrl_c
 ///         Ok(()) => {},
 ///         // catch error

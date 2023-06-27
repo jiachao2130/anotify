@@ -1,10 +1,14 @@
 [package]
-name = "anotify"
+name = "anotify-rs"
 version = "0.1.0"
 edition = "2021"
 keywords = ["async", "inotify", "recursive"]
 include = ["src/**/*", "Cargo.toml", "README.md"]
 description = "An async wrapper for Linux inotify API, easy to use."
+
+[[bin]]
+name = "anotify"
+path = "src/main.rs"
 
 [profile.release]
 opt-level = 3
