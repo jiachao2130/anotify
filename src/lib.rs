@@ -45,6 +45,8 @@ pub mod app;
 
 pub mod handler;
 mod watcher;
+mod new_watcher;
+mod new_handler;
 
 pub use app::Anotify;
 pub use inotify::WatchMask;

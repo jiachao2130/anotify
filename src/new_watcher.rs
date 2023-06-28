@@ -8,13 +8,13 @@ use path_absolutize::*;
 
 /// A Watcher contains EventStream，maintained a `HashMap` about `WatchDescriptor` to `PathBuf`
 #[derive(Debug)]
-struct Watcher {
+pub struct Watcher {
     stream: EventStream<[u8; 1024]>,
     wds: HashMap<WatchDescriptor, PathBuf>,
 }
 
 impl Watcher {
-    fn init() -> Self {
+    pub fn init() -> Self {
         let inotify = Inotify::init().expect("Failed to initialize Inotify");
         let buffer = [0; 1024];
         let stream = inotify.into_event_stream(buffer).unwrap();
@@ -24,7 +24,7 @@ impl Watcher {
         }
     }
 
-    fn add<P>(&mut self, path: P, mask: &WatchMask) -> crate::Result<()>
+    pub fn add<P>(&mut self, path: P, mask: &WatchMask) -> crate::Result<()>
     where
         P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>,
     {
@@ -39,13 +39,13 @@ impl Watcher {
         Ok(())
     }
 
-    fn remove(&mut self, wd: WatchDescriptor) -> crate::Result<()> {
+    pub fn remove(&mut self, wd: WatchDescriptor) -> crate::Result<()> {
         self.stream.watches().remove(wd.clone())?;
         self.wds.remove(&wd);
         Ok(())
     }
 
-    async fn next(&mut self) -> Option<Event> {
+    pub async fn next(&mut self) -> Option<Event> {
         match self.stream.next().await {
             // 获取事件，转换为 `Watcher::Event`
             Some(event) => {
@@ -60,7 +60,6 @@ impl Watcher {
                 if let Some(name) = name {
                     root.push(name);
                 }
-                let mask = WatchMask::from_bits(mask.bits() & WatchMask::ALL_EVENTS.bits()).unwrap();
 
                 return Some(Event {
                     root,
@@ -73,17 +72,17 @@ impl Watcher {
 }
 
 #[derive(Clone, Debug)]
-struct Event {
+pub struct Event {
     root: PathBuf,
-    mask: WatchMask,
+    mask: EventMask,
 }
 
 impl Event {
-    fn path(&self) -> &Path {
+    pub fn path(&self) -> &Path {
         &self.root
     }
 
-    fn mask(&self) -> &WatchMask {
+    pub fn mask(&self) -> &EventMask {
         &self.mask
     }
 }
