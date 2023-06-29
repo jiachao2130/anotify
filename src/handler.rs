@@ -7,8 +7,17 @@ use regex::Regex;
 use tokio::sync::{broadcast, mpsc};
 
 use crate::app::Anotify;
-use crate::watcher::{Watcher, Event};
+use crate::watcher::{Event, Watcher};
 
+/// Start a inotify server to monitor files change.
+/// When catch `shutdown` result, or some error were caused, quit.
+///
+/// You'd better define a `output` to recv all events, if not, the result would be print to stdout
+/// like:
+///
+/// ```no_run
+/// println!("{:?}: {:?}", event.mask(), event.path());
+/// ```
 pub async fn run(
     anotify: Anotify,
     output: Option<broadcast::Sender<Event>>,
@@ -40,15 +49,18 @@ async fn handler(anotify: Anotify, output: Option<broadcast::Sender<Event>>) -> 
     dispatch(targets, &handler_tx);
 
     loop {
-        tokio::select!{
+        tokio::select! {
             // here handle the event
             Some(event) = watcher.next() => {
                 // if recursive mode && found new dir
-                if recursive
-                    && !(*event.mask() & EventMask::CREATE).is_empty()
-                    && !(*event.mask() & EventMask::ISDIR).is_empty()
-                {
+                if recursive && event.is_dir() && event.is_new() {
                     handler_tx.send(event.path().as_os_str().to_os_string()).await.unwrap();
+                }
+
+                // fd was remvoed
+                if !(*event.mask() & EventMask::IGNORED).is_empty() {
+                    let _ = watcher.remove(event.wd().clone());
+                    continue
                 }
 
                 // fliter
@@ -56,16 +68,16 @@ async fn handler(anotify: Anotify, output: Option<broadcast::Sender<Event>>) -> 
                     && !re
                         .as_ref()
                         .unwrap()
-                        .is_match(&event.path().to_str().unwrap()) 
+                        .is_match(&event.path().to_str().unwrap())
                 {
                     continue
                 }
 
-                // send event to output or 
+                // send event to output or print to stdout
                 if output.is_some() {
                     let _ = output.as_ref().unwrap().send(event)?;
                 } else {
-                    println!("{:?}: {:?}", event.mask(), event.path());
+                    println!("{:?}: {:?}", event.watchmask(), event.path());
                 }
             },
             // add new watch task
