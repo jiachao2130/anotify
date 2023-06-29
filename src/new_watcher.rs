@@ -1,4 +1,3 @@
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 
@@ -85,14 +84,4 @@ impl Event {
     pub fn mask(&self) -> &EventMask {
         &self.mask
     }
-}
-
-pub async fn demo() -> crate::Result<()> {
-    let mut watcher = Watcher::init();
-    let mask = WatchMask::CREATE;
-    watcher.add("/tmp/aa", &mask)?;
-    watcher.add("/tmp/bb", &mask)?;
-    watcher.add("/tmp/cc", &mask)?;
-
-    Ok(())
 }
