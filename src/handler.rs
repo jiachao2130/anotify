@@ -2,13 +2,21 @@ use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::path::Path;
 
-use inotify::EventMask;
 use regex::Regex;
 use tokio::sync::{broadcast, mpsc};
 
 use crate::app::Anotify;
-use crate::watcher::{Watcher, Event};
+use crate::watcher::{Action, Watcher, Event};
 
+/// Start a inotify server to monitor files change.
+/// When catch `shutdown` result, or some error were caused, quit.
+///
+/// You'd better define a `output` to recv all events, if not, the result would be print to stdout
+/// like:
+///
+/// ```no_run
+/// println!("{:?}: {:?}", event.mask(), event.path());
+/// ```
 pub async fn run(
     anotify: Anotify,
     output: Option<broadcast::Sender<Event>>,
@@ -44,11 +52,14 @@ async fn handler(anotify: Anotify, output: Option<broadcast::Sender<Event>>) -> 
             // here handle the event
             Some(event) = watcher.next() => {
                 // if recursive mode && found new dir
-                if recursive
-                    && !(*event.mask() & EventMask::CREATE).is_empty()
-                    && !(*event.mask() & EventMask::ISDIR).is_empty()
-                {
+                if recursive && *event.action() == Action::ADD {
                     handler_tx.send(event.path().as_os_str().to_os_string()).await.unwrap();
+                }
+
+                // dir fd was remvoed
+                if *event.action() == Action::REMOVE {
+                    let _ = watcher.remove(event.wd().clone());
+                    continue
                 }
 
                 // fliter
@@ -61,11 +72,11 @@ async fn handler(anotify: Anotify, output: Option<broadcast::Sender<Event>>) -> 
                     continue
                 }
 
-                // send event to output or 
+                // send event to output or print to stdout
                 if output.is_some() {
                     let _ = output.as_ref().unwrap().send(event)?;
                 } else {
-                    println!("{:?}: {:?}", event.mask(), event.path());
+                    println!("{:?}: {:?}", event.watchmask(), event.path());
                 }
             },
             // add new watch task

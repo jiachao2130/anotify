@@ -39,8 +39,8 @@ impl Watcher {
     }
 
     pub fn remove(&mut self, wd: WatchDescriptor) -> crate::Result<()> {
-        self.stream.watches().remove(wd.clone())?;
         self.wds.remove(&wd);
+        self.stream.watches().remove(wd)?;
         Ok(())
     }
 
@@ -55,14 +55,25 @@ impl Watcher {
                     name,
                 } = event.unwrap();
 
+                let mut action = Action::IGNORE;
+
                 let mut root = self.wds.get(&wd).unwrap().clone();
                 if let Some(name) = name {
+                    if !(mask & EventMask::ISDIR).is_empty() {
+                        action = Action::ADD;
+                    }
                     root.push(name);
+                }
+                // if IGNORED, fd be rm/moved_to, clean wds
+                if !(mask & EventMask::IGNORED).is_empty() {
+                    action = Action::REMOVE;
                 }
 
                 return Some(Event {
+                    wd,
                     root,
                     mask,
+                    action,
                 })
             },
             _ => return None,
@@ -70,13 +81,19 @@ impl Watcher {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Event {
+    wd: WatchDescriptor,
     root: PathBuf,
     mask: EventMask,
+    action: Action,
 }
 
 impl Event {
+    pub fn wd(&self) -> &WatchDescriptor {
+        &self.wd
+    }
+
     pub fn path(&self) -> &Path {
         &self.root
     }
@@ -84,4 +101,19 @@ impl Event {
     pub fn mask(&self) -> &EventMask {
         &self.mask
     }
+
+    pub fn watchmask(&self) -> WatchMask {
+        WatchMask::from_bits(&self.mask.bits() & WatchMask::ALL_EVENTS.bits()).unwrap()
+    }
+
+    pub fn action(&self) -> &Action {
+        &self.action
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Action {
+    IGNORE,
+    ADD,
+    REMOVE,
 }
