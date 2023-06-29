@@ -1,158 +1,111 @@
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::future::Future;
-use std::sync::Arc;
+use std::path::Path;
 
+use inotify::EventMask;
 use regex::Regex;
-use tokio::sync::Mutex;
-use tokio::sync::{
-    broadcast,
-    mpsc::{self, Receiver, Sender},
-};
+use tokio::sync::{broadcast, mpsc};
 
 use crate::app::Anotify;
-use crate::watcher::{self, Event};
-use crate::WatchMask;
+use crate::watcher::{Watcher, Event};
 
-/// channels collection, for handle func
-#[derive(Debug)]
-struct Handle {
-    // send new path to watched
-    pub handler_tx: Sender<OsString>,
-
-    // handle new watch path
-    pub handler_rx: Receiver<OsString>,
-
-    // send watched event to fliter
-    pub fliter_tx: Sender<Event>,
-
-    // fileter: handle watched event
-    pub fliter_rx: Receiver<Event>,
-
-    // handler: handle err sended by watcher.
-    pub err_tx: Sender<crate::Error>,
-
-    // outside to handle events
-    pub output: Option<broadcast::Sender<Event>>,
-}
-
-/// Start a inotify server to monitor files change.
-/// When catch `shutdown` result, or some error were caused, quit.
-///
-/// You'd better define a `output` to recv all events, if not, the result would be print to stdout
-/// like:
-///
-/// ```no_run
-/// println!("{:?}: {:?}", event.mask(), event.path());
-/// ```
 pub async fn run(
     anotify: Anotify,
     output: Option<broadcast::Sender<Event>>,
     shutdown: impl Future,
 ) -> crate::Result<()> {
-    // init all handle channels, all task communicate by them.
-    let (handler_tx, handler_rx) = mpsc::channel(1024);
-    let (fliter_tx, fliter_rx) = mpsc::channel(1024);
-    let (err_tx, mut err_rx) = mpsc::channel(1);
-
-    let handle = Handle {
-        handler_tx,
-        handler_rx,
-        fliter_tx,
-        fliter_rx,
-        err_tx,
-        output,
-    };
-
     tokio::select! {
-        Err(e) = handler(anotify, handle) => Err(e),
-        Some(e) = err_rx.recv() => Err(e),
+        Err(e) = handler(anotify, output) => Err(e),
         _ = shutdown => Ok(()),
     }
 }
 
-async fn handler(anotify: Anotify, handle: Handle) -> crate::Result<()> {
+async fn handler(anotify: Anotify, output: Option<broadcast::Sender<Event>>) -> crate::Result<()> {
     let Anotify {
         mask,
         recursive,
         regex,
         targets,
     } = anotify;
-    let Handle {
-        handler_tx,
-        mut handler_rx,
-        fliter_tx,
-        fliter_rx,
-        err_tx,
-        output,
-    } = handle;
-    let counter = Arc::new(Mutex::new(0));
 
-    let tx = handler_tx.clone();
-    tokio::spawn(async move {
-        for target in targets {
-            tx.send(target).await.unwrap();
-        }
-    });
-
-    tokio::spawn(fliter(fliter_rx, mask.clone(), regex, output));
-
-    loop {
-        if let Some(target) = handler_rx.recv().await {
-            let handler = handler_tx.clone();
-            let fliter = fliter_tx.clone();
-            let err = err_tx.clone();
-            let mut _counter = counter.lock().await;
-            *_counter += 1;
-            let counter = Arc::clone(&counter);
-            tokio::spawn(async move {
-                match watcher::watch(target, &mask, recursive, handler, fliter).await {
-                    Ok(_) => {}
-                    Err(e) => err.send(e).await.unwrap(),
-                }
-
-                let mut _counter = counter.lock().await;
-                *_counter -= 1;
-                if *_counter == 0 {
-                    err.send("Error: All watches FD were removed.".into())
-                        .await
-                        .unwrap();
-                }
-            });
-        }
-    }
-}
-
-async fn fliter(
-    mut rx: Receiver<Event>,
-    mask: WatchMask,
-    regex: Option<String>,
-    handler: Option<broadcast::Sender<Event>>,
-) -> crate::Result<()> {
+    // init re mode
     let mut re = None;
     if let Some(regex) = regex {
         re = Some(Regex::new(&regex).unwrap());
     }
 
+    let mut watcher = Watcher::init();
+    let (handler_tx, mut handler_rx) = mpsc::channel(10);
+
+    dispatch(targets, &handler_tx);
+
     loop {
-        // 过滤并处理 inotfiy 事件
-        if let Some(event) = rx.recv().await {
-            // regex 匹配过滤
-            if re.is_some()
-                && !re
-                    .as_ref()
-                    .unwrap()
-                    .is_match(&event.path().as_path().to_str().unwrap())
-            {
-                continue;
-            }
+        tokio::select!{
+            // here handle the event
+            Some(event) = watcher.next() => {
+                // if recursive mode && found new dir
+                if recursive
+                    && !(*event.mask() & EventMask::CREATE).is_empty()
+                    && !(*event.mask() & EventMask::ISDIR).is_empty()
+                {
+                    handler_tx.send(event.path().as_os_str().to_os_string()).await.unwrap();
+                }
 
-            if handler.is_some() {
-                let _ = handler.as_ref().unwrap().send(event)?;
-                continue;
-            }
+                // fliter
+                if re.is_some()
+                    && !re
+                        .as_ref()
+                        .unwrap()
+                        .is_match(&event.path().to_str().unwrap()) 
+                {
+                    continue
+                }
 
-            let mask = mask & *event.mask();
-            println!("{:?}: {:?}", mask, event.path());
+                // send event to output or 
+                if output.is_some() {
+                    let _ = output.as_ref().unwrap().send(event)?;
+                } else {
+                    println!("{:?}: {:?}", event.mask(), event.path());
+                }
+            },
+            // add new watch task
+            Some(target) = handler_rx.recv() => {
+                watcher.add(&target, &mask)?;
+                if recursive {
+                    let targets = sub_dir(&target)?;
+
+                    dispatch(targets, &handler_tx);
+                }
+            },
         }
     }
+}
+
+fn dispatch(targets: Vec<OsString>, tx: &mpsc::Sender<OsString>) {
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        for target in targets {
+            tx.send(target).await.unwrap();
+        }
+    });
+}
+
+fn sub_dir<P>(path: P) -> crate::Result<Vec<OsString>>
+where
+    P: AsRef<Path> + std::convert::AsRef<OsStr>,
+{
+    let mut res = vec![];
+    let path = Path::new(&path);
+
+    for entry in path.read_dir().expect("failed to read_dir") {
+        if let Ok(entry) = entry {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_dir() {
+                    res.push(path.join(entry.path()).into_os_string());
+                }
+            }
+        }
+    }
+
+    Ok(res)
 }
