@@ -1,7 +1,9 @@
 [package]
 name = "async-inotify"
 version = "0.1.0"
+authors = ["Jia Chao <jiachao2130@126.com>"]
 edition = "2021"
+license = "MIT"
 repository = "https://github.com/jiachao2130/anotify"
 keywords = ["async", "inotify", "recursive"]
 include = ["src/**/*", "Cargo.toml", "README.md"]
