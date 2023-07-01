@@ -46,7 +46,7 @@ Options:
 
 ```rust
 use std::ffi::OsString;
-use anotify_rs::{
+use async_inotify::{
     Anotify,
     Event,
     WatchMask,
@@ -70,11 +70,32 @@ async fn main() {
         }
     });
 
-    match anotify_rs::handler::run(anotify, Some(tx), tokio::signal::ctrl_c()).await {
+    match async_inotify::handler::run(anotify, Some(tx), tokio::signal::ctrl_c()).await {
         // press ctrl_c
         Ok(()) => {},
         // catch error
         Err(e) => panic!("{}", e),
     };
+}
+```
+
+或直接使用 Watcher 并自定义 handler：
+
+```rust
+use async_inotify::{WatchMask, Watcher};
+
+#[tokio::main]
+async fn main() {
+    let mut watcher = Watcher::init();
+    let mask = WatchMask::CREATE;
+
+    let wd = watcher.add("/tmp/cc", &mask).unwrap();
+
+    // watch once
+    if let Some(event) = watcher.next().await {
+        println!("{:?}: {:?}", event.mask(), event.path());
+    }
+
+    watcher.remove(wd).unwrap();
 }
 ```

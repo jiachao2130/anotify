@@ -9,7 +9,7 @@
 ///
 /// ```
 /// use std::ffi::OsString;
-/// use anotify_rs::{
+/// use async_inotify::{
 ///     Anotify,
 ///     Event,
 ///     WatchMask,
@@ -33,12 +33,33 @@
 ///         }
 ///     });
 ///
-///     match anotify_rs::handler::run(anotify, Some(tx), tokio::signal::ctrl_c()).await {
+///     match async_inotify::handler::run(anotify, Some(tx), tokio::signal::ctrl_c()).await {
 ///         // press ctrl_c
 ///         Ok(()) => {},
 ///         // catch error
 ///         Err(e) => panic!("{}", e),
 ///     };
+/// }
+/// ```
+///
+/// Or operate Watcher as you like.
+///
+/// ```rust
+/// use async_inotify::{WatchMask, Watcher};
+/// 
+/// #[tokio::main]
+/// async fn main() {
+///     let mut watcher = Watcher::init();
+///     let mask = WatchMask::CREATE;
+/// 
+///     let wd = watcher.add("/tmp/cc", &mask).unwrap();
+/// 
+///     // watch once
+///     if let Some(event) = watcher.next().await {
+///         println!("{:?}: {:?}", event.mask(), event.path());
+///     }
+/// 
+///     watcher.remove(wd).unwrap();
 /// }
 /// ```
 pub mod app;
@@ -49,6 +70,7 @@ mod watcher;
 pub use app::Anotify;
 pub use inotify::WatchMask;
 pub use watcher::Event;
+pub use watcher::Watcher;
 
 /// 定义 crate::Error
 /// 大部分函数返回的错误

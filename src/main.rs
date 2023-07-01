@@ -1,8 +1,8 @@
-use anotify_rs::handler;
+use async_inotify::handler;
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> anotify_rs::Result<()> {
-    let anotify = anotify_rs::app::parse()?;
+async fn main() -> async_inotify::Result<()> {
+    let anotify = async_inotify::app::parse()?;
     match handler::run(anotify, None, tokio::signal::ctrl_c()).await {
         Ok(()) => return Ok(()),
         Err(err) => {

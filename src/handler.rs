@@ -82,7 +82,7 @@ async fn handler(anotify: Anotify, output: Option<broadcast::Sender<Event>>) -> 
             },
             // add new watch task
             Some(target) = handler_rx.recv() => {
-                watcher.add(&target, &mask)?;
+                let _ = watcher.add(&target, &mask)?;
                 if recursive {
                     let targets = sub_dir(&target)?;
 

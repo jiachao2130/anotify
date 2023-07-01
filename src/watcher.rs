@@ -28,7 +28,7 @@ impl Watcher {
     }
 
     // Add a new path with watchmask to Watcher.
-    pub fn add<P>(&mut self, path: P, mask: &WatchMask) -> crate::Result<()>
+    pub fn add<P>(&mut self, path: P, mask: &WatchMask) -> crate::Result<WatchDescriptor>
     where
         P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>,
     {
@@ -39,8 +39,8 @@ impl Watcher {
         }
 
         let wd = self.stream.watches().add(&root, mask.clone())?;
-        self.wds.insert(wd, root.to_path_buf());
-        Ok(())
+        self.wds.insert(wd.clone(), root.to_path_buf());
+        Ok(wd)
     }
 
     // remove a watch by WatchDescriptor
